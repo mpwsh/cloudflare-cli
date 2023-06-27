@@ -1,5 +1,5 @@
-use cloudflare::endpoints::account::Settings;
 use chrono::{DateTime, Utc};
+use cloudflare::endpoints::account::Settings;
 
 /// Cloudflare Accounts
 /// An Account is the root object which owns other resources such as zones, load balancers and billing details.

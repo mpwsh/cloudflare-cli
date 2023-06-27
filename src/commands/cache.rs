@@ -1,16 +1,15 @@
-use cloudflare::framework::{
-    apiclient::ApiClient,
-    HttpApiClient,
-};
 use crate::api::endpoints::cache::{PurgeCache, PurgeCacheParams};
-use crate::{terminal, http};
+use crate::{http, terminal};
 use clap::Values;
 use cloudflare::framework::response::ApiResponse;
+use cloudflare::framework::{apiclient::ApiClient, HttpApiClient};
 
 pub fn process_response<T>(res: ApiResponse<T>) {
     match res {
-        Ok(_) => terminal::info("Successfully purged assets. Please allow up to 30 seconds for changes to take effect."),
-        Err(e) => terminal::error(http::format_error(e, None).as_str())
+        Ok(_) => terminal::info(
+            "Successfully purged assets. Please allow up to 30 seconds for changes to take effect.",
+        ),
+        Err(e) => terminal::error(http::format_error(e, None).as_str()),
     }
 }
 

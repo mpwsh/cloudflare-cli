@@ -1,25 +1,21 @@
-use cloudflare::endpoints::user::{
-    GetUserDetails,
-    GetUserTokenStatus,
-};
+use cloudflare::endpoints::user::{GetUserDetails, GetUserTokenStatus};
 #[allow(unused_imports)]
 use cloudflare::framework::{
-    apiclient::ApiClient,
-    auth::Credentials,
-    Environment,
-    HttpApiClient,
-    HttpApiClientConfig,
+    apiclient::ApiClient, auth::Credentials, Environment, HttpApiClient, HttpApiClientConfig,
 };
 use failure;
 
+use crate::config::{get_global_config_path, Config, Context, GlobalCredential};
 use crate::{http, terminal};
-use crate::config::{Config, Context, GlobalCredential, get_global_config_path};
 
 pub fn save_credential(cred: &GlobalCredential) -> Result<(), failure::Error> {
     terminal::info("Validating credentials...");
-    validate_credentials(&cred)?;
+    validate_credentials(cred)?;
 
-    let context = Context { name: "default".to_string(), credential: cred.to_owned() };
+    let context = Context {
+        name: "default".to_string(),
+        credential: cred.to_owned(),
+    };
     let config = Config {
         current_context: "default".to_string(),
         contexts: vec![context],
@@ -38,7 +34,8 @@ pub fn validate_credentials(credential: &GlobalCredential) -> Result<(), failure
         Credentials::from(credential.to_owned()),
         HttpApiClientConfig::default(),
         Environment::Production,
-    )?;
+    )
+    .unwrap();
 
     match credential {
         GlobalCredential::Token { .. } => {

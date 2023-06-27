@@ -1,25 +1,14 @@
 use std::net::{Ipv4Addr, Ipv6Addr};
 
 use cloudflare::endpoints::dns::{
-    CreateDnsRecord,
-    CreateDnsRecordParams,
-    DeleteDnsRecord,
-    DeleteDnsRecordResponse,
-    DnsContent,
-    DnsRecord,
-    ListDnsRecords,
-    ListDnsRecordsParams,
-    UpdateDnsRecord,
-    UpdateDnsRecordParams,
+    CreateDnsRecord, CreateDnsRecordParams, DeleteDnsRecord, DeleteDnsRecordResponse, DnsContent,
+    DnsRecord, ListDnsRecords, ListDnsRecordsParams, UpdateDnsRecord, UpdateDnsRecordParams,
 };
-use cloudflare::framework::{
-    apiclient::ApiClient,
-    HttpApiClient,
-};
+use cloudflare::framework::{apiclient::ApiClient, HttpApiClient};
 use tabular::Row;
 
-use crate::commands::table_from_cols;
 use crate::api::endpoints::dns::DnsRecordDetails;
+use crate::commands::table_from_cols;
 
 pub struct ListParams<'a, 'b> {
     pub zone_id: &'a str,
@@ -30,9 +19,10 @@ pub struct ListParams<'a, 'b> {
 }
 
 pub struct ListFilters<'a> {
-    pub all: Option<&'a str>
+    pub all: Option<&'a str>,
 }
 
+#[derive(Deserialize, Debug)]
 pub struct CreateParams<'a> {
     pub zone_id: &'a str,
     pub name: &'a str,
@@ -52,14 +42,18 @@ pub struct UpdateParams<'a> {
     pub content: Option<&'a str>,
 }
 
-fn resolve_content(record_type: &str, content: &str, priority: u16) -> Result<DnsContent, &'static str> {
+fn resolve_content(
+    record_type: &str,
+    content: &str,
+    priority: u16,
+) -> Result<DnsContent, &'static str> {
     match record_type {
         "A" => {
             let ip: Option<Ipv4Addr> = content.parse().ok();
 
             match ip {
                 Some(content) => Ok(DnsContent::A { content }),
-                None => Err("Invalid IPv4 address")
+                None => Err("Invalid IPv4 address"),
             }
         }
         "AAAA" => {
@@ -67,22 +61,28 @@ fn resolve_content(record_type: &str, content: &str, priority: u16) -> Result<Dn
 
             match ip {
                 Some(content) => Ok(DnsContent::AAAA { content }),
-                None => Err("Invalid IPv6 address")
+                None => Err("Invalid IPv6 address"),
             }
         }
-        "CNAME" => Ok(DnsContent::CNAME { content: String::from(content) }),
-        "MX" => Ok(DnsContent::MX { content: String::from(content), priority }),
-        "TXT" => Ok(DnsContent::TXT { content: String::from(content) }),
-        "NS" => Ok(DnsContent::CNAME { content: String::from(content) }),
-        _ => Err("Record type not supported")
+        "CNAME" => Ok(DnsContent::CNAME {
+            content: String::from(content),
+        }),
+        "MX" => Ok(DnsContent::MX {
+            content: String::from(content),
+            priority,
+        }),
+        "TXT" => Ok(DnsContent::TXT {
+            content: String::from(content),
+        }),
+        "NS" => Ok(DnsContent::CNAME {
+            content: String::from(content),
+        }),
+        _ => Err("Record type not supported"),
     }
 }
 
 pub fn list(api: &HttpApiClient, params: ListParams) {
-    let name = match params.filters.all {
-        Some(n) => Some(format!("contains:{}", n)),
-        _ => None
-    };
+    let name = params.filters.all.map(|n| format!("contains:{}", n));
 
     let response = api.request(&ListDnsRecords {
         zone_identifier: params.zone_id,
@@ -103,25 +103,11 @@ pub fn list(api: &HttpApiClient, params: ListParams) {
 
             let columns = if params.wide {
                 vec![
-                    "ID",
-                    "NAME",
-                    "TYPE",
-                    "CONTENT",
-                    "TTL",
-                    "PROXY",
-                    "LOCKED",
-                    "CREATED",
+                    "ID", "NAME", "TYPE", "CONTENT", "TTL", "PROXY", "LOCKED", "CREATED",
                     "MODIFIED",
                 ]
             } else {
-                vec![
-                    "ID",
-                    "NAME",
-                    "TYPE",
-                    "CONTENT",
-                    "TTL",
-                    "PROXY",
-                ]
+                vec!["ID", "NAME", "TYPE", "CONTENT", "TTL", "PROXY"]
             };
 
             let mut table = table_from_cols(columns);
@@ -134,8 +120,12 @@ pub fn list(api: &HttpApiClient, params: ListParams) {
                     DnsContent::AAAA { content: c } => row.add_cell("AAAA").add_cell(c),
                     DnsContent::CNAME { content: c } => row.add_cell("CNAME").add_cell(c),
                     DnsContent::NS { content: c } => row.add_cell("NS").add_cell(c),
-                    DnsContent::MX { content: c, priority: _ } => row.add_cell("MX").add_cell(c),
+                    DnsContent::MX {
+                        content: c,
+                        priority: _,
+                    } => row.add_cell("MX").add_cell(c),
                     DnsContent::TXT { content: c } => row.add_cell("TXT").add_cell(c),
+                    DnsContent::SRV { content: c } => row.add_cell("SRV").add_cell(c),
                 };
 
                 let ttl = format!("{}", record.ttl);
@@ -152,7 +142,7 @@ pub fn list(api: &HttpApiClient, params: ListParams) {
             }
             print!("{}", table);
         }
-        Err(e) => println!("{:?}", e)
+        Err(e) => println!("{:?}", e),
     }
 }
 
@@ -164,14 +154,13 @@ pub fn create(api: &HttpApiClient, record: CreateParams) {
             return;
         }
     };
-
     let response = api.request(&CreateDnsRecord {
         zone_identifier: record.zone_id,
         params: CreateDnsRecordParams {
             ttl: Some(record.ttl),
             priority: None,
             proxied: Some(record.proxied),
-            name: &record.name,
+            name: record.name,
             content,
         },
     });
@@ -183,7 +172,7 @@ pub fn create(api: &HttpApiClient, record: CreateParams) {
             println!("Record \"{}\" created", record.id)
         }
         // @todo abstract error formatting
-        Err(failure) => println!("An error occurred {:?}", failure)
+        Err(failure) => println!("An error occurred {:?}", failure),
     }
 }
 
@@ -200,7 +189,7 @@ pub fn delete(api: &HttpApiClient, zone_id: &str, ids: Vec<&str>) {
                 println!("Record \"{}\" deleted", record.id)
             }
             // @todo abstract error formatting
-            Err(failure) => println!("An error occurred {:?}", failure)
+            Err(failure) => println!("An error occurred {:?}", failure),
         }
     }
 }
@@ -221,26 +210,28 @@ pub fn update(api: &HttpApiClient, input: UpdateParams) {
                 DnsContent::AAAA { content: _ } => "AAAA",
                 DnsContent::CNAME { content: _ } => "CNAME",
                 DnsContent::NS { content: _ } => "NS",
-                DnsContent::MX { content: _, priority: _ } => "MX",
+                DnsContent::MX {
+                    content: _,
+                    priority: _,
+                } => "MX",
                 DnsContent::TXT { content: _ } => "TXT",
+                DnsContent::SRV { content: _ } => "SRV",
             };
 
             let content = match input.content {
-                Some(content) => {
-                    match resolve_content(record_type, content, 1) {
-                        Ok(resolved) => resolved,
-                        Err(e) => {
-                            println!("{}", e);
-                            return;
-                        }
+                Some(content) => match resolve_content(record_type, content, 1) {
+                    Ok(resolved) => resolved,
+                    Err(e) => {
+                        println!("{}", e);
+                        return;
                     }
-                }
-                None => record.content
+                },
+                None => record.content,
             };
 
             let name: &str = match input.name {
                 Some(n) => n,
-                None => &record.name
+                None => &record.name,
             };
             let response = api.request(&UpdateDnsRecord {
                 zone_identifier: input.zone_id,
@@ -259,7 +250,7 @@ pub fn update(api: &HttpApiClient, input: UpdateParams) {
                     println!("Record {} updated", record.id)
                 }
                 // @todo abstract error formatting
-                Err(failure) => println!("An error occurred {:?}", failure)
+                Err(failure) => println!("An error occurred {:?}", failure),
             }
         }
     }

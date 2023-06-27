@@ -1,18 +1,14 @@
 use clap::{App, AppSettings, Arg, ArgMatches, SubCommand};
 use cloudflare::endpoints::zone::ListZonesParams;
+use cloudflare::framework::response::ApiResponse;
 #[allow(unused_imports)]
 use cloudflare::framework::{
-    apiclient::ApiClient,
-    auth::Credentials,
-    Environment,
-    HttpApiClient,
-    HttpApiClientConfig,
+    apiclient::ApiClient, auth::Credentials, Environment, HttpApiClient, HttpApiClientConfig,
 };
-use cloudflare::framework::response::ApiResponse;
 
-use cflare::commands::{accounts, config, dns, zones, cache};
-use cflare::config::{Config, get_global_config_path};
 use cflare::api::endpoints::zones::{ListZones, ZoneVec};
+use cflare::commands::{accounts, cache, config, dns, zones};
+use cflare::config::{get_global_config_path, Config};
 use cflare::terminal;
 
 const MAX_DNS_TTL: u32 = 2_147_483_647;
@@ -20,14 +16,17 @@ const MAX_DNS_TTL: u32 = 2_147_483_647;
 fn valid_u32(arg: String) -> Result<(), String> {
     match arg.parse::<u32>() {
         Ok(_) => Ok(()),
-        Err(_) => Err(format!("Value must be an integer; received: {}", arg))
+        Err(_) => Err(format!("Value must be an integer; received: {}", arg)),
     }
 }
 
 fn valid_priority(arg: String) -> Result<(), String> {
     match arg.parse::<u16>() {
         Ok(_) => Ok(()),
-        Err(_) => Err(format!("Value must be an 16-bit integer; received: {}", arg))
+        Err(_) => Err(format!(
+            "Value must be an 16-bit integer; received: {}",
+            arg
+        )),
     }
 }
 
@@ -36,18 +35,24 @@ fn valid_ttl(arg: String) -> Result<(), String> {
 
     match ttl {
         Ok(value) => {
-            if value < 1 || value > MAX_DNS_TTL {
-                return Err(String::from(format!("Value must be between 1 and {} seconds", MAX_DNS_TTL)));
+            if !(1..=MAX_DNS_TTL).contains(&value) {
+                return Err(format!(
+                    "Value must be between 1 and {} seconds",
+                    MAX_DNS_TTL
+                ));
             }
             Ok(())
         }
-        Err(_) => Err(format!("Value must be an integer; received: {}", arg))
+        Err(_) => Err(format!("Value must be an integer; received: {}", arg)),
     }
 }
 
 fn resolve_zone(api: &HttpApiClient, arg: &ArgMatches) -> String {
-    if arg.is_present("zone-id") { arg.value_of("zone-id").unwrap().to_owned() } else {
+    if arg.is_present("zone-id") {
+        arg.value_of("zone-id").unwrap().to_owned()
+    } else {
         let zone = arg.value_of("zone").unwrap();
+
         let res: ApiResponse<ZoneVec> = api.request(&ListZones {
             params: ListZonesParams {
                 name: Some(String::from(zone)),
@@ -57,7 +62,7 @@ fn resolve_zone(api: &HttpApiClient, arg: &ArgMatches) -> String {
                 order: None,
                 direction: None,
                 search_match: None,
-            }
+            },
         });
 
         match res {
@@ -81,7 +86,6 @@ fn resolve_zone(api: &HttpApiClient, arg: &ArgMatches) -> String {
 }
 
 fn get_api_client(args: &ArgMatches) -> HttpApiClient {
-    let credentials: Credentials;
     let config_file = get_global_config_path().unwrap();
     let cred_flags = args.is_present("email") || args.is_present("key") || args.is_present("token");
     if !config_file.exists() && !cred_flags {
@@ -90,12 +94,12 @@ fn get_api_client(args: &ArgMatches) -> HttpApiClient {
     }
 
     // Set credentials from flags/env
-    if cred_flags {
+    let credentials: Credentials = if cred_flags {
         let email = args.value_of("email");
         let key = args.value_of("key");
         let token = args.value_of("token");
 
-        credentials = if let Some(key) = key {
+        if let Some(key) = key {
             Credentials::UserAuthKey {
                 email: email.unwrap().to_string(),
                 key: key.to_string(),
@@ -107,7 +111,7 @@ fn get_api_client(args: &ArgMatches) -> HttpApiClient {
         } else {
             terminal::error("Either API token or API key + email pair must be provided");
             std::process::exit(1);
-        };
+        }
     } else {
         let config: Config = match Config::from_file(config_file) {
             Ok(c) => c,
@@ -117,14 +121,15 @@ fn get_api_client(args: &ArgMatches) -> HttpApiClient {
             }
         };
         let cred = &config.contexts[0].credential;
-        credentials = Credentials::from(cred.to_owned());
-    }
+        Credentials::from(cred.to_owned())
+    };
 
     HttpApiClient::new(
         credentials,
         HttpApiClientConfig::default(),
         Environment::Production,
-    ).unwrap()
+    )
+    .unwrap()
 }
 
 fn main() {
@@ -173,117 +178,124 @@ fn main() {
 
     let commands = vec![
         SubCommand::with_name("config").help("Setup your Cloudflare account"),
-        SubCommand::with_name("accounts")
-            .subcommands(vec![
-                SubCommand::with_name("list").arg(
-                    limit.clone()
-                ),
-                SubCommand::with_name("describe"),
-            ]),
+        SubCommand::with_name("accounts").subcommands(vec![
+            SubCommand::with_name("list").arg(limit.clone()),
+            SubCommand::with_name("describe"),
+        ]),
         SubCommand::with_name("zones")
-            .subcommands(vec![
-                SubCommand::with_name("list")
-                    .arg(limit.clone()),
-            ]),
-        SubCommand::with_name("cache")
-            .subcommands(vec![
-                SubCommand::with_name("purge")
-                    .args(&zone_args.clone())
-                    .arg(Arg::with_name("all")
-                        .short("A")
-                        .long("all")
-                        .help("Remove ALL files from Cloudflare's cache")
-                    )
-                    .arg(Arg::with_name("url")
-                        .short("u")
-                        .long("url")
-                        .multiple(true)
-                        .max_values(30)
-                        .required_unless("all")
-                        .conflicts_with("all")
-                        .help("Remove one or more files from Cloudflare's cache by specifying URLs")
-                    )
-            ]),
-        SubCommand::with_name("dns")
-            .subcommands(vec![
-                SubCommand::with_name("list")
-                    .args(&zone_args.clone())
-                    .arg(Arg::with_name("wide").long("wide").short("w"))
-                    .arg(Arg::with_name("name").long("name").short("n")
-                        .takes_value(true).help("Filter by name. Performs partial matching"))
-                    .arg(limit.clone()),
-                SubCommand::with_name("delete")
-                    .args(&zone_args.clone())
-                    .arg(
-                        Arg::with_name("id")
-                            .required(true)
-                            .min_values(1)
-                            .help("Record identifier. Multiple values can be provided")
-                    ),
-                SubCommand::with_name("create")
-                    .arg(Arg::with_name("name")
+            .subcommands(vec![SubCommand::with_name("list").arg(limit.clone())]),
+        SubCommand::with_name("cache").subcommands(vec![SubCommand::with_name("purge")
+            .args(&zone_args.clone())
+            .arg(
+                Arg::with_name("all")
+                    .short("A")
+                    .long("all")
+                    .help("Remove ALL files from Cloudflare's cache"),
+            )
+            .arg(
+                Arg::with_name("url")
+                    .short("u")
+                    .long("url")
+                    .multiple(true)
+                    .max_values(30)
+                    .required_unless("all")
+                    .conflicts_with("all")
+                    .help("Remove one or more files from Cloudflare's cache by specifying URLs"),
+            )]),
+        SubCommand::with_name("dns").subcommands(vec![
+            SubCommand::with_name("list")
+                .args(&zone_args.clone())
+                .arg(Arg::with_name("wide").long("wide").short("w"))
+                .arg(
+                    Arg::with_name("name")
+                        .long("name")
+                        .short("n")
+                        .takes_value(true)
+                        .help("Filter by name. Performs partial matching"),
+                )
+                .arg(limit.clone()),
+            SubCommand::with_name("delete")
+                .args(&zone_args.clone())
+                .arg(
+                    Arg::with_name("id")
+                        .required(true)
+                        .min_values(1)
+                        .help("Record identifier. Multiple values can be provided"),
+                ),
+            SubCommand::with_name("create")
+                .arg(
+                    Arg::with_name("name")
                         .takes_value(true)
                         .required(true)
-                        .help("DNS record name")
-                    )
-                    .args(&zone_args.clone())
-                    .arg(Arg::with_name("content")
+                        .help("DNS record name"),
+                )
+                .args(&zone_args.clone())
+                .arg(
+                    Arg::with_name("content")
                         .short("c")
                         .long("content")
                         .takes_value(true)
                         .required(true)
-                        .help("DNS record content")
-                    )
-                    .arg(record_type.clone().required(true))
-                    .arg(Arg::with_name("ttl")
+                        .help("DNS record content"),
+                )
+                .arg(record_type.clone().required(true))
+                .arg(
+                    Arg::with_name("ttl")
                         .long("ttl")
                         .validator(valid_ttl)
                         .takes_value(true)
                         .required(true)
-                        .help("Time to live for DNS record. Value of 1 is 'automatic'")
-                    )
-                    .arg(Arg::with_name("proxied")
+                        .help("Time to live for DNS record. Value of 1 is 'automatic'"),
+                )
+                .arg(
+                    Arg::with_name("proxied")
                         .long("proxied")
-                        .help("Whether the record would be proxied by Cloudflare")
-                    )
-                    .arg(Arg::with_name("priority")
+                        .help("Whether the record would be proxied by Cloudflare"),
+                )
+                .arg(
+                    Arg::with_name("priority")
                         .long("priority")
                         .validator(valid_priority)
                         .takes_value(true)
-                        .help("Used with some records like MX and SRV to determine priority")
-                    ),
-                SubCommand::with_name("update")
-                    .arg(Arg::with_name("id")
+                        .help("Used with some records like MX and SRV to determine priority"),
+                ),
+            SubCommand::with_name("update")
+                .arg(
+                    Arg::with_name("id")
                         .takes_value(true)
                         .help("DNS record id")
-                        .required(true)
-                    )
-                    .arg(Arg::with_name("name")
+                        .required(true),
+                )
+                .arg(
+                    Arg::with_name("name")
                         .short("n")
                         .long("name")
                         .takes_value(true)
-                        .help("DNS record name")
-                    )
-                    .args(&zone_args.clone())
-                    .arg(Arg::with_name("content")
+                        .help("DNS record name"),
+                )
+                .args(&zone_args.clone())
+                .arg(
+                    Arg::with_name("content")
                         .short("c")
                         .long("content")
                         .takes_value(true)
-                        .help("DNS record content")
-                    )
-                    .arg(Arg::with_name("ttl")
+                        .help("DNS record content"),
+                )
+                .arg(
+                    Arg::with_name("ttl")
                         .long("ttl")
                         .validator(valid_ttl)
                         .takes_value(true)
-                        .help("Time to live for DNS record. Value of 1 is 'automatic'")
-                    )
-                    .arg(Arg::with_name("proxied")
+                        .help("Time to live for DNS record. Value of 1 is 'automatic'"),
+                )
+                .arg(
+                    Arg::with_name("proxied")
                         .long("proxied")
                         .takes_value(true)
                         .possible_values(&["0", "1", "true", "false"])
-                        .help("Whether the record would be proxied by Cloudflare")
-                    )
-            ]),
+                        .help("Whether the record would be proxied by Cloudflare"),
+                ),
+        ]),
     ];
 
     let app = App::new("cflare")
@@ -314,14 +326,14 @@ fn main() {
                 let limit: u32 = cmd.value_of("limit").unwrap_or("50").parse().unwrap();
                 accounts::list(&api, 1, limit)
             }
-            _ => terminal::error("Unknown command")
+            _ => terminal::error("Unknown command"),
         },
         ("zones", Some(sub_cmd)) => match sub_cmd.subcommand() {
             ("list", Some(cmd)) => {
                 let limit: u32 = cmd.value_of("limit").unwrap_or("50").parse().unwrap();
                 zones::list(&api, 1, limit)
             }
-            _ => unimplemented!()
+            _ => unimplemented!(),
         },
         ("cache", Some(sub_cmd)) => match sub_cmd.subcommand() {
             ("purge", Some(cmd)) => {
@@ -334,9 +346,8 @@ fn main() {
                     let urls = cmd.values_of("url").unwrap();
                     cache::purge_url(&api, zone.as_str(), urls);
                 }
-
             }
-            _ => unimplemented!()
+            _ => unimplemented!(),
         },
         ("dns", Some(sub_cmd)) => match sub_cmd.subcommand() {
             ("list", Some(cmd)) => {
@@ -362,7 +373,6 @@ fn main() {
                 let name = cmd.value_of("name").unwrap();
                 let ttl: u32 = cmd.value_of("ttl").unwrap_or("1").parse().unwrap();
                 let priority: u16 = cmd.value_of("priority").unwrap_or("0").parse().unwrap();
-
                 let record = dns::CreateParams {
                     zone_id: &zone,
                     name,
@@ -382,20 +392,18 @@ fn main() {
                 let name = cmd.value_of("name");
 
                 let ttl: Option<u32> = match cmd.value_of("ttl") {
-                    Some(val) => {
-                        match val.parse() {
-                            Ok(ttl) => Some(ttl),
-                            Err(_) => None
-                        }
-                    }
+                    Some(val) => match val.parse() {
+                        Ok(ttl) => Some(ttl),
+                        Err(_) => None,
+                    },
                     None => None,
                 };
                 let proxied = match cmd.value_of("proxied") {
                     Some(val) => match val {
                         "1" | "true" => Some(true),
-                        _ => Some(false)
+                        _ => Some(false),
                     },
-                    None => None
+                    None => None,
                 };
 
                 let record = dns::UpdateParams {
@@ -417,6 +425,6 @@ fn main() {
             }
             _ => {}
         },
-        _ => unreachable!()
+        _ => unreachable!(),
     }
 }

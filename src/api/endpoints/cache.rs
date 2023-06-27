@@ -22,7 +22,7 @@ impl<'a> Endpoint<Cache, (), PurgeCacheParams> for PurgeCache<'a> {
 
 #[derive(Debug, Deserialize)]
 pub struct Cache {
-    pub id: String
+    pub id: String,
 }
 
 #[derive(Clone, Serialize)]

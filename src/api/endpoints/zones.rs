@@ -1,33 +1,25 @@
-use chrono::DateTime;
+use crate::api::endpoints::account::Account;
+use crate::api::endpoints::plan::Plan;
 use chrono::offset::Utc;
-use cloudflare::endpoints::{
-    zone::{
-        HostingPartner,
-        ListZonesParams,
-        Owner,
-        Status,
-        Type,
-    },
-};
+use chrono::DateTime;
+use cloudflare::endpoints::zone::{HostingPartner, ListZonesParams, Status, Type};
 use cloudflare::framework::{
     endpoint::{Endpoint, Method},
     response::ApiResult,
 };
-use crate::api::endpoints::plan::Plan;
-use crate::api::endpoints::account::Account;
 
 // Workaround for error E0117
 #[derive(Deserialize, Debug)]
 #[serde(transparent)]
 pub struct ZoneVec {
-    pub zones: Vec<Zone>
+    pub zones: Vec<Zone>,
 }
 
 /// List Zones
 /// List, search, sort, and filter your zones
 /// https://api.cloudflare.com/#zone-list-zones
 pub struct ListZones {
-    pub params: ListZonesParams
+    pub params: ListZonesParams,
 }
 
 impl Endpoint<ZoneVec, ListZonesParams> for ListZones {
@@ -106,5 +98,17 @@ pub struct Zone {
     pub zone_type: Type,
 }
 
+#[derive(Deserialize, Debug)]
+#[serde(rename_all = "lowercase", tag = "type")]
+pub enum Owner {
+    User {
+        id: Option<String>,
+        email: Option<String>,
+    },
+    Organization {
+        id: Option<String>,
+        name: Option<String>,
+    },
+}
 impl ApiResult for Zone {}
 impl ApiResult for ZoneVec {}

@@ -1,5 +1,5 @@
-use cloudflare::framework::endpoint::{Endpoint, Method};
 use cloudflare::endpoints::dns::DnsRecord;
+use cloudflare::framework::endpoint::{Endpoint, Method};
 
 /// DNS Record Details
 /// https://api.cloudflare.com/#dns-records-for-a-zone-dns-record-details
@@ -12,6 +12,9 @@ impl<'a> Endpoint<DnsRecord> for DnsRecordDetails<'a> {
         Method::Get
     }
     fn path(&self) -> String {
-        format!("zones/{}/dns_records/{}", self.zone_identifier, self.identifier)
+        format!(
+            "zones/{}/dns_records/{}",
+            self.zone_identifier, self.identifier
+        )
     }
 }

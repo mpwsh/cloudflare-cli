@@ -1,5 +1,5 @@
-use text_io::read;
 use colored::Colorize;
+use text_io::read;
 
 pub fn prompt(message: &str) -> String {
     println!("{}", message);

@@ -29,7 +29,7 @@ pub struct Config {
 // set the permissions on the dir, we want to avoid that other user reads to file
 #[cfg(not(target_os = "windows"))]
 pub fn set_file_mode(file: &PathBuf) {
-    File::open(&file)
+    File::open(file)
         .unwrap()
         .set_permissions(PermissionsExt::from_mode(0o600))
         .expect("could not set permissions on file");
@@ -47,12 +47,12 @@ impl Config {
     pub fn to_file(&self, config_path: &Path) -> Result<(), failure::Error> {
         let toml = toml::to_string(self)?;
 
-        fs::create_dir_all(&config_path.parent().unwrap())?;
-        fs::write(&config_path, toml)?;
+        fs::create_dir_all(config_path.parent().unwrap())?;
+        fs::write(config_path, toml)?;
 
         // set permissions on the file
         #[cfg(not(target_os = "windows"))]
-            set_file_mode(&config_path.to_path_buf());
+        set_file_mode(&config_path.to_path_buf());
 
         Ok(())
     }
@@ -70,13 +70,11 @@ impl Config {
         }
 
         match fs::read_to_string(config_path) {
-            Ok(c) => {
-                match toml::from_str(&c) {
-                    Ok(conf) => Ok(conf),
-                    _ => failure::bail!("invalid config format")
-                }
-            }
-            _ => failure::bail!("error while reading config file")
+            Ok(c) => match toml::from_str(&c) {
+                Ok(conf) => Ok(conf),
+                _ => failure::bail!("invalid config format"),
+            },
+            _ => failure::bail!("error while reading config file"),
         }
     }
 }
@@ -84,7 +82,9 @@ impl Config {
 impl From<GlobalCredential> for Credentials {
     fn from(user: GlobalCredential) -> Credentials {
         match user {
-            GlobalCredential::Token { api_token } => Credentials::UserAuthToken { token: api_token },
+            GlobalCredential::Token { api_token } => {
+                Credentials::UserAuthToken { token: api_token }
+            }
             GlobalCredential::GlobalKey { email, api_key } => Credentials::UserAuthKey {
                 key: api_key,
                 email,
