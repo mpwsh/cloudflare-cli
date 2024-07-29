@@ -1,14 +1,14 @@
 use std::net::{Ipv4Addr, Ipv6Addr};
 
+use crate::api::endpoints::dns::DnsRecordDetails;
+use crate::commands::table_from_cols;
 use cloudflare::endpoints::dns::{
     CreateDnsRecord, CreateDnsRecordParams, DeleteDnsRecord, DeleteDnsRecordResponse, DnsContent,
     DnsRecord, ListDnsRecords, ListDnsRecordsParams, UpdateDnsRecord, UpdateDnsRecordParams,
 };
 use cloudflare::framework::{apiclient::ApiClient, HttpApiClient};
+use serde::Deserialize;
 use tabular::Row;
-
-use crate::api::endpoints::dns::DnsRecordDetails;
-use crate::commands::table_from_cols;
 
 pub struct ListParams<'a, 'b> {
     pub zone_id: &'a str,
@@ -132,12 +132,6 @@ pub fn list(api: &HttpApiClient, params: ListParams) {
                 row.add_cell(if ttl == "1" { "Auto" } else { &ttl })
                     .add_cell(if record.proxied { "Yes" } else { "No" });
 
-                if params.wide {
-                    row.add_cell(if record.locked { "Yes" } else { "No" })
-                        .add_cell(record.created_on)
-                        .add_cell(record.modified_on);
-                }
-
                 table.add_row(row);
             }
             print!("{}", table);
@@ -201,7 +195,7 @@ pub fn update(api: &HttpApiClient, input: UpdateParams) {
     });
 
     match get_response {
-        Err(failure) => println!("{:?}", failure),
+        Err(failure) => println!("error updating {:?}", failure),
         Ok(success) => {
             let record: DnsRecord = success.result;
 

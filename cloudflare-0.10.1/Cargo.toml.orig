@@ -1,0 +1,30 @@
+[package]
+name = "cloudflare"
+version = "0.10.1"
+authors = ["Areg Harutyunyan <areg@cloudflare.com>"]
+edition = "2018"
+description = "Rust library for the Cloudflare v4 API"
+keywords = ["cloudflare", "api", "client"]
+categories = ["api-bindings", "web-programming::http-client"]
+license = "BSD-3-Clause"
+
+[features]
+default = ["default-tls"]
+default-tls = ["reqwest/default-tls"]
+rustls-tls = ["reqwest/rustls-tls"]
+
+[dependencies]
+anyhow = "1.0"
+async-trait = "0.1"
+base64 = "0.13"
+chrono = { version = "0.4", features = ["serde"] }
+cfg-if = "1.0"
+http = "0.2"
+percent-encoding = "2.1.0"
+reqwest = { version = "0.11.4", default-features = false, features = ["json", "blocking"] }
+serde = { version = "1.0", features = ["derive"] }
+serde_json = "1.0"
+serde_qs = "0.10"
+serde_with = "2.0"
+url = "2.2"
+uuid = { version = "1.0", features = ["serde", "v4"] }

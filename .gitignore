@@ -1,2 +1,4 @@
 /target
 cloudflare-rs
+./ip-update
+cloudflare-0.10.1/target/*
