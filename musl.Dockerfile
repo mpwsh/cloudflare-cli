@@ -1,7 +1,7 @@
 FROM alpine:edge AS build
 
 WORKDIR /app
-RUN apk --no-cache add rust cargo g++ openssl openssl-dev clang jq ca-certificates bash linux-headers clang16-libclang
+RUN apk --no-cache add rust pkg-config cargo g++ openssl openssl-dev clang jq ca-certificates bash linux-headers clang16-libclang
 
 ENV OPENSSL_STATIC=yes \
   PKG_CONFIG_ALLOW_CROSS=true \
